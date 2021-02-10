@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/index.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/reference/pb_delete.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/reference/pb_download.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/reference/pb_download_url.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/reference/pb_list.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/reference/pb_new_release.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/reference/pb_track.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/reference/pb_upload.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/reference/piggyback-package.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/articles/alternatives.html</loc>
+  </url>
+  <url>
+    <loc>https://docs.ropensci.org/piggyback/articles/intro.html</loc>
+  </url>
+</urlset>

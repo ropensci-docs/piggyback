@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "c1d3546790453ae58c931f8f9f2070121457c59a",
+    "author": "Carl Boettiger <cboettig@gmail.com>",
+    "time": "2021-02-10 17:21:43",
+    "files": 12,
+    "merge": true,
+    "message": "Merge pull request #44 from edavidaja/gert\n\nreplace git2r with gert"
+  },
+  "remote": "https://github.com/ropensci/piggyback",
+  "pkg": "piggyback"
+}

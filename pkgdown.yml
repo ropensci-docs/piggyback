@@ -1,0 +1,11 @@
+pandoc: '2.5'
+pkgdown: 1.6.1
+pkgdown_sha: ~
+articles:
+  alternatives: alternatives.html
+  intro: intro.html
+last_built: 2021-07-09T10:01Z
+urls:
+  reference: https://docs.ropensci.org/piggyback/reference
+  article: https://docs.ropensci.org/piggyback/articles
+
