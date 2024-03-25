@@ -1,0 +1,12 @@
+pandoc: 2.16.2
+pkgdown: 2.0.7
+pkgdown_sha: ~
+articles:
+  alternatives: alternatives.html
+  cloud_native: cloud_native.html
+  piggyback: piggyback.html
+last_built: 2024-03-25T07:25Z
+urls:
+  reference: https://docs.ropensci.org/piggyback/reference
+  article: https://docs.ropensci.org/piggyback/articles
+
