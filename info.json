@@ -1,0 +1,13 @@
+{
+  "commit": {
+    "commit": "844f27f82c4b561126af8f2fc0e4abc124fae5a3",
+    "author": "Tan Ho <38083823+tanho63@users.noreply.github.com>",
+    "time": "2025-11-10T15:22:22Z",
+    "files": 1,
+    "merge": false,
+    "message": "Add minimum R version requirement to DESCRIPTION"
+  },
+  "repo": "https://github.com/ropensci/piggyback",
+  "pkg": "piggyback",
+  "time": "2026-08-30T07:30:04Z"
+}
