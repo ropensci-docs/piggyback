@@ -1,0 +1,559 @@
+# Piggyback Data atop your GitHub Repository!
+
+``` r
+
+library(piggyback)
+library(magrittr)
+```
+
+## Why `piggyback`?
+
+`piggyback` grew out of the needs of students both in my classroom and
+in my research group, who frequently need to work with data files
+somewhat larger than one can conveniently manage by committing directly
+to GitHub. As we frequently want to share and run code that depends on
+\>50MB data files on each of our own machines, on continuous
+integration, and on larger computational servers, data sharing quickly
+becomes a bottleneck.
+
+[GitHub
+allows](https://docs.github.com/en/github/managing-large-files/distributing-large-binaries)
+repositories to attach files of up to 2 GB each to releases as a way to
+distribute large files associated with the project source code. There is
+no limit on the number of files or bandwidth to deliver them.
+
+## Authentication
+
+No authentication is required to download data from *public* GitHub
+repositories using `piggyback`. Nevertheless, we recommends setting a
+token when possible to avoid rate limits. To upload data to any
+repository, or to download data from *private* repositories, you will
+need to authenticate first.
+
+`piggyback` uses the same GitHub Personal Access Token (PAT) that
+devtools, usethis, and friends use
+([`gh::gh_token()`](https://gh.r-lib.org/reference/gh_token.html)). The
+current best practice for managing your GitHub credentials is detailed
+in this [usethis
+vignette](https://usethis.r-lib.org/articles/git-credentials.html).
+
+You can also add the token as an environment variable, which may be
+useful in situations where you use piggyback non-interactively
+(i.e. automated scripts). Here are the relevant steps:
+
+- Create a [GitHub
+  Token](https://github.com/settings/tokens/new?scopes=repo,gist&description=PIGGYBACK_PAT)
+- Add the environment variable:
+  - via project-specific Renviron:
+    - `usethis::use_git_ignore(".Renviron")` to update your gitignore -
+      this prevents accidentally committing your token to GitHub
+    - `usethis::edit_r_environ("project")` to open the Renviron file,
+      and then add your token, e.g. `GITHUB_PAT=ghp_a1b2c3d4e5f6g7`
+  - via `Sys.setenv(GITHUB_PAT = "ghp_a1b2c3d4e5f6g7")` in your console
+    for adhoc usage. Avoid adding this line to your R scripts –
+    remember, the goal here is to avoid writing your private token in
+    any file that might be shared, even privately.
+
+## Download Files
+
+Download a file from a release:
+
+``` r
+
+pb_download(
+  file = "iris2.tsv.gz", 
+  dest = tempdir(),
+  repo = "cboettig/piggyback-tests",
+  tag = "v0.0.1"
+  )
+#> ℹ Downloading "iris2.tsv.gz"...
+#>   |======================================================| 100%
+fs::dir_tree(tempdir())
+#> /tmp/RtmpWxJSZj
+#> └── iris2.tsv.gz
+```
+
+Some default behaviors to know about:
+
+1.  The `repo` argument in most piggyback functions will default to
+    detecting the relevant GitHub repo based on your current working
+    directory’s git configs, so in many cases you can omit the `repo`
+    argument.
+2.  The `tag` argument in most functions defaults to “latest”, which
+    typically refers to the most recently created release of the
+    repository, unless there is a release specifically named “latest” or
+    if you have marked a different release as “latest” via the GitHub
+    UI.
+3.  The `dest` argument defaults to your current working directory
+    (`"."`). We use [`tempdir()`](https://rdrr.io/r/base/tempfile.html)
+    to meet CRAN policies for the purposes of examples.
+4.  The `file` argument in `pb_download` defaults to NULL, which will
+    download all files connected to a given release:
+
+``` r
+
+pb_download(
+  repo = "cboettig/piggyback-tests",
+  tag = "v0.0.1",
+  dest = tempdir()
+)
+#> ℹ Downloading "diamonds.tsv.gz"...
+#>   |======================================================| 100%
+#> ℹ Downloading "iris.tsv.gz"...
+#>   |======================================================| 100%
+#> ℹ Downloading "iris.tsv.xz"...
+#>   |======================================================| 100%
+fs::dir_tree(tempdir())
+#> /tmp/RtmpWxJSZj
+#> ├── diamonds.tsv.gz
+#> ├── iris.tsv.gz
+#> ├── iris.tsv.xz
+#> └── iris2.tsv.gz
+```
+
+5.  The `use_timestamps` argument defaults to TRUE - notice that above,
+    `iris2.tsv.gz` was not downloaded. If `use_timestamps` is TRUE,
+    pb_download() will compare the local file timestamp against the
+    GitHub file timestamp, and only download the file if it has changed.
+
+[`pb_download()`](https://docs.ropensci.org/piggyback/reference/pb_download.md)
+also includes arguments to control the progress bar or if any particular
+files should not be downloaded.
+
+### Download URLs
+
+Sometimes it is preferable to have a URL from which the data can be read
+in directly. These URL can then be passed into another R function, which
+can be more elegant and performant than having to first download the
+files locally. Enter
+[`pb_download_url()`](https://docs.ropensci.org/piggyback/reference/pb_download_url.md):
+
+``` r
+
+pb_download_url(repo = "cboettig/piggyback-tests", tag = "v0.0.1")
+#> [1] "https://github.com/cboettig/piggyback-tests/releases/download/v0.0.1/diamonds.tsv.gz"
+#> [2] "https://github.com/cboettig/piggyback-tests/releases/download/v0.0.1/iris.tsv.gz"    
+#> [3] "https://github.com/cboettig/piggyback-tests/releases/download/v0.0.1/iris.tsv.xz"    
+#> [4] "https://github.com/cboettig/piggyback-tests/releases/download/v0.0.1/iris2.tsv.gz" 
+```
+
+By default, this function returns the same download URL that you would
+get by visiting the release page, right-clicking on the file, and
+copying the link (aka the “browser_download_url”). This URL is served by
+GitHub’s web servers and not its API servers, and therefore not as
+restrictive with rate-limiting.
+
+However, this URL is not accessible for private repositories, since the
+auth tokens are handled by the GitHub API. You can retrieve the API
+download url for private repositories by passing in `"api"` to the
+`url_type` argument:
+
+``` r
+
+pb_download_url(repo = "cboettig/piggyback-tests", tag = "v0.0.1", url_type = "api")
+#> [1] https://api.github.com/repos/cboettig/piggyback-tests/releases/assets/44261315
+#> [2] https://api.github.com/repos/cboettig/piggyback-tests/releases/assets/41841778
+#> [3] https://api.github.com/repos/cboettig/piggyback-tests/releases/assets/18538636
+#> [4] https://api.github.com/repos/cboettig/piggyback-tests/releases/assets/8990141
+```
+
+`pb_download_url` otherwise shares similar default behaviors with
+`pb_download` for the `file`, `repo`, and `tag` arguments.
+
+## Reading data for R usage
+
+`piggyback` supports several general patterns for reading data into R,
+with increasing degrees of performance/efficiency (and complexity):
+
+- [`pb_download()`](https://docs.ropensci.org/piggyback/reference/pb_download.md)
+  files to disk and then reading files with a function that reads from
+  disk into memory
+- [`pb_download_url()`](https://docs.ropensci.org/piggyback/reference/pb_download_url.md)
+  a set of URLs and then passing those URLs to a function that retrieves
+  those URLs directly into memory
+- Disk-based workflows which require downloading all files first but
+  then can perform queries before reading into memory
+- Cloud-native workflows which can perform queries directly on the URLs
+  before reading into memory
+
+We recommend the latter two approaches in cases where performance and
+efficiency matter, and have some vignettes with examples: - [cloud
+native
+workflows](https://docs.ropensci.org/piggyback/articles/cloud_native.html) -
+disk native workflows
+
+### Reading files
+
+[`pb_read()`](https://docs.ropensci.org/piggyback/reference/pb_read.md)
+is a wrapper on the first pattern - it downloads the file to a temp
+file, then reads that file into memory, then deletes the temporary file.
+It works for both public and private repositories, handling
+authentication under the hood:
+
+``` r
+
+pb_read("mtcars.rds", repo = "tanho63/piggyback-private")
+#> # A data.frame: 32 × 11
+#>     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#>   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+#> 1  21       6   160   110  3.9   2.62  16.5     0     1     4     4
+#> 2  21       6   160   110  3.9   2.88  17.0     0     1     4     4
+#> 3  22.8     4   108    93  3.85  2.32  18.6     1     1     4     1
+#> 4  21.4     6   258   110  3.08  3.22  19.4     1     0     3     1
+#> 5  18.7     8   360   175  3.15  3.44  17.0     0     0     3     2
+#> # ℹ 27 more rows
+#> # ℹ 1 more variable: carb <dbl>
+pb_read("mtcars.parquet", repo = "tanho63/piggyback-private")
+#> # A data.frame: 32 × 11
+#>     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#>   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+#> 1  21       6   160   110  3.9   2.62  16.5     0     1     4     4
+#> 2  21       6   160   110  3.9   2.88  17.0     0     1     4     4
+#> 3  22.8     4   108    93  3.85  2.32  18.6     1     1     4     1
+#> 4  21.4     6   258   110  3.08  3.22  19.4     1     0     3     1
+#> 5  18.7     8   360   175  3.15  3.44  17.0     0     0     3     2
+#> # ℹ 27 more rows
+#> # ℹ 1 more variable: carb <dbl>
+```
+
+By default, `pb_read` is programmed to use the following `read_function`
+for the corresponding file extensions:
+
+- “.csv”, “.csv.gz”, “.csv.xz” are read with
+  [`utils::read.csv()`](https://rdrr.io/r/utils/read.table.html)
+- “.tsv”, “.tsv.gz”, “.tsv.xz” are read with
+  [`utils::read.delim()`](https://rdrr.io/r/utils/read.table.html)
+- “.rds” is read with [`readRDS()`](https://rdrr.io/r/base/readRDS.html)
+- “.json” is read with
+  [`jsonlite::fromJSON()`](https://jeroen.r-universe.dev/jsonlite/reference/fromJSON.html)
+- “.parquet” is read with
+  [`arrow::read_parquet()`](https://arrow.apache.org/docs/r/reference/read_parquet.html)
+- “.txt” is read with
+  [`readLines()`](https://rdrr.io/r/base/readLines.html)
+
+If a file extension is not on this list, `pb_read` will raise an error
+and ask you to provide a `read_function` - you can also use this
+parameter to override the default `read_function` yourself:
+
+``` r
+
+pb_read(
+  file = "play_by_play_2023.qs", 
+  repo = "nflverse/nflverse-data",
+  tag = "pbp",
+  read_function = qs::qread
+)
+#> # A tibble: 42,251 × 372
+#>   play_id game_id        old_game_id home_team away_team season_type  week posteam
+#>     <dbl> <chr>          <chr>       <chr>     <chr>     <chr>       <int> <chr>  
+#> 1       1 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 NA     
+#> 2      39 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 WAS    
+#> 3      55 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 WAS    
+#> 4      77 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 WAS    
+#> 5     102 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 WAS    
+#> # ℹ 42,246 more rows
+#> # ℹ 364 more variables: posteam_type <chr>, defteam <chr>, side_of_field <chr>,
+#> #   yardline_100 <dbl>, game_date <chr>, quarter_seconds_remaining <dbl>,
+#> #   half_seconds_remaining <dbl>, game_seconds_remaining <dbl>, game_half <chr>,
+#> #   quarter_end <dbl>, drive <dbl>, sp <dbl>, qtr <dbl>, down <dbl>,
+#> #   goal_to_go <dbl>, time <chr>, yrdln <chr>, ydstogo <dbl>, ydsnet <dbl>,
+#> #   desc <chr>, play_type <chr>, yards_gained <dbl>, shotgun <dbl>, …
+```
+
+Any `read_function` can be provided so long as it accepts the filename
+as the first argument, and you can pass any additional parameters via
+`...`:
+
+``` r
+
+pb_read(
+  file = "play_by_play_2023.csv", 
+  n_max = 10,
+  repo = "nflverse/nflverse-data",
+  tag = "pbp",
+  read_function = readr::read_csv
+)
+#> # A tibble: 10 × 372
+#>   play_id game_id        old_game_id home_team away_team season_type  week posteam
+#>     <dbl> <chr>          <chr>       <chr>     <chr>     <chr>       <int> <chr>  
+#> 1       1 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 NA     
+#> 2      39 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 WAS    
+#> 3      55 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 WAS    
+#> 4      77 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 WAS    
+#> 5     102 2023_01_ARI_W… 2023091007  WAS       ARI       REG             1 WAS    
+#> # ℹ 5 more rows
+#> # ℹ 364 more variables: posteam_type <chr>, defteam <chr>, side_of_field <chr>,
+#> #   yardline_100 <dbl>, game_date <chr>, quarter_seconds_remaining <dbl>,
+#> #   half_seconds_remaining <dbl>, game_seconds_remaining <dbl>, game_half <chr>,
+#> #   quarter_end <dbl>, drive <dbl>, sp <dbl>, qtr <dbl>, down <dbl>,
+#> #   goal_to_go <dbl>, time <chr>, yrdln <chr>, ydstogo <dbl>, ydsnet <dbl>,
+#> #   desc <chr>, play_type <chr>, yards_gained <dbl>, shotgun <dbl>, …
+```
+
+### Reading from URLs
+
+More efficiently, many read functions accept URLs, including
+[`read.csv()`](https://rdrr.io/r/utils/read.table.html),
+[`arrow::read_parquet()`](https://arrow.apache.org/docs/r/reference/read_parquet.html),
+[`readr::read_csv()`](https://readr.tidyverse.org/reference/read_delim.html),
+`data.table::fread()`, and
+[`jsonlite::fromJSON()`](https://jeroen.r-universe.dev/jsonlite/reference/fromJSON.html),
+so reading in one file can be done by passing along the output of
+[`pb_download_url()`](https://docs.ropensci.org/piggyback/reference/pb_download_url.md):
+
+``` r
+
+pb_download_url("mtcars.csv", repo = "tanho63/piggyback-tests", tag = "v0.0.2") %>%
+  read.csv()
+#> # A data.frame: 32 × 12
+#>   X        mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear
+#>   <chr>  <dbl> <int> <dbl> <int> <dbl> <dbl> <dbl> <int> <int> <int>
+#> 1 Mazda…  21       6   160   110  3.9   2.62  16.5     0     1     4
+#> 2 Mazda…  21       6   160   110  3.9   2.88  17.0     0     1     4
+#> 3 Datsu…  22.8     4   108    93  3.85  2.32  18.6     1     1     4
+#> 4 Horne…  21.4     6   258   110  3.08  3.22  19.4     1     0     3
+#> 5 Horne…  18.7     8   360   175  3.15  3.44  17.0     0     0     3
+#> # ℹ 27 more rows
+#> # ℹ 1 more variable: carb <int>
+#> # ℹ Use `print(n = ...)` to see more rows
+```
+
+Some functions also accept URLs when converted into a connection by
+wrapping it in [`url()`](https://rdrr.io/r/base/connections.html),
+e.g. for [`readRDS()`](https://rdrr.io/r/base/readRDS.html):
+
+``` r
+
+pb_url <- pb_download_url("mtcars.rds", repo = "tanho63/piggyback-tests", tag = "v0.0.2") %>%
+  url()
+readRDS(pb_url)
+#> # A data.frame: 32 × 11
+#>     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#>   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+#> 1  21       6   160   110  3.9   2.62  16.5     0     1     4     4
+#> 2  21       6   160   110  3.9   2.88  17.0     0     1     4     4
+#> 3  22.8     4   108    93  3.85  2.32  18.6     1     1     4     1
+#> 4  21.4     6   258   110  3.08  3.22  19.4     1     0     3     1
+#> 5  18.7     8   360   175  3.15  3.44  17.0     0     0     3     2
+#> # ℹ 27 more rows
+#> # ℹ Use `print(n = ...)` to see more rows
+close(pb_url)
+```
+
+Note that using [`url()`](https://rdrr.io/r/base/connections.html)
+requires that we close the connection after reading it, or else we will
+receive warnings about leaving open connections.
+
+This [`url()`](https://rdrr.io/r/base/connections.html) approach allows
+us to pass along authentication for private repos, e.g.
+
+``` r
+
+pb_url <- pb_download_url("mtcars.rds", repo = "tanho63/piggyback-private", url_type = "api") %>%
+  url(
+    headers = c(
+      "Accept" = "application/octet-stream",
+      "Authorization" = paste("Bearer", gh::gh_token())
+    )
+  )
+readRDS(pb_url)
+#> # A tibble: 32 × 11
+#>     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#>   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+#> 1  21       6   160   110  3.9   2.62  16.5     0     1     4     4
+#> 2  21       6   160   110  3.9   2.88  17.0     0     1     4     4
+#> 3  22.8     4   108    93  3.85  2.32  18.6     1     1     4     1
+#> 4  21.4     6   258   110  3.08  3.22  19.4     1     0     3     1
+#> 5  18.7     8   360   175  3.15  3.44  17.0     0     0     3     2
+#> # ℹ 27 more rows
+#> # ℹ Use `print(n = ...)` to see more rows
+close(pb_url)
+```
+
+Note that `arrow` does not accept a
+[`url()`](https://rdrr.io/r/base/connections.html) connection at this
+time, so you should default to
+[`pb_read()`](https://docs.ropensci.org/piggyback/reference/pb_read.md)
+if using private repositories.
+
+## Uploading data
+
+`piggyback` uploads data to GitHub releases. If your repository doesn’t
+have a release yet, `piggyback` will prompt you to create one - you can
+create a release with:
+
+``` r
+
+pb_release_create(repo = "cboettig/piggyback-tests", tag = "v0.0.2")
+#> ✔ Created new release "v0.0.2".
+```
+
+Create new releases to manage multiple versions of a given data file, or
+to organize sets of files under a common topic. While you can create
+releases as often as you like, making a new release is not necessary
+each time you upload a file. If maintaining old versions of the data is
+not useful, you can stick with a single release and upload all of your
+data there.
+
+Once we have at least one release available, we are ready to upload
+files. By default, `pb_upload` will attach data to the latest release.
+
+``` r
+
+## We'll need some example data first.
+## Pro tip: compress your tabular data to save space & speed upload/downloads
+readr::write_tsv(mtcars, "mtcars.tsv.gz")
+
+pb_upload("mtcars.tsv.gz", repo = "cboettig/piggyback-tests")
+#> ℹ Uploading to latest release: "v0.0.2".
+#> ℹ Uploading mtcars.tsv.gz ...
+#>   |===================================================| 100%
+```
+
+Like
+[`pb_download()`](https://docs.ropensci.org/piggyback/reference/pb_download.md),
+[`pb_upload()`](https://docs.ropensci.org/piggyback/reference/pb_upload.md)
+will overwrite any file of the same name already attached to the release
+file by default, unless the timestamp of the previously uploaded version
+is more recent. You can toggle these settings with the `overwrite`
+parameter.
+
+`pb_upload` also accepts a vector of multiple files to upload:
+
+``` r
+
+library(magrittr)
+## upload a folder of data
+list.files("data") %>% 
+  pb_upload(repo = "cboettig/piggyback-tests", tag = "v0.0.1")
+
+## upload certain file extensions
+list.files(pattern = c("*.tsv.gz", "*.tif", "*.zip")) %>% 
+  pb_upload(repo = "cboettig/piggyback-tests", tag = "v0.0.1")
+```
+
+### Write R object directly to release
+
+`pb_write` wraps the above process, essentially allowing you to upload
+directly to a release by providing an object, filename, and repo/tag:
+
+``` r
+
+pb_write(mtcars, "mtcars.rds", repo = "cboettig/piggyback-tests")
+#> ℹ Uploading to latest release: "v0.0.2".
+#> ℹ Uploading mtcars.rds ...
+#>   |===================================================| 100%
+```
+
+Similar to `pb_read`, `pb_write` has some pre-programmed
+`write_functions` for the following file extensions: - “.csv”,
+“.csv.gz”, “.csv.xz” are written with
+[`utils::write.csv()`](https://rdrr.io/r/utils/write.table.html) -
+“.tsv”, “.tsv.gz”, “.tsv.xz” are written with
+`utils::write.csv(x, filename, sep = '\t')` - “.rds” is written with
+[`saveRDS()`](https://rdrr.io/r/base/readRDS.html) - “.json” is written
+with
+[`jsonlite::write_json()`](https://jeroen.r-universe.dev/jsonlite/reference/read_json.html) -
+“.parquet” is written with
+[`arrow::write_parquet()`](https://arrow.apache.org/docs/r/reference/write_parquet.html) -
+“.txt” is written with
+[`writeLines()`](https://rdrr.io/r/base/writeLines.html)
+
+and you can pass custom functions with the `write_function` parameter:
+
+``` r
+
+pb_write(
+  x = mtcars, 
+  file = "mtcars.csv.gz", 
+  repo = "cboettig/piggyback-tests", 
+  write_function = data.table::fwrite
+)
+#> ℹ Uploading to latest release: "v0.0.2".
+#> ℹ Uploading mtcars.csv.gz ...
+#>   |===================================================| 100%
+```
+
+## Deleting Files
+
+Delete a file from a release:
+
+``` r
+
+pb_delete(file = "mtcars.tsv.gz", 
+          repo = "cboettig/piggyback-tests", 
+          tag = "v0.0.1")
+#> ℹ Deleted "mtcars.tsv.gz" from "v0.0.1" release on "cboettig/piggyback-tests"
+```
+
+Note that this is irreversible unless you have a copy of the data
+elsewhere.
+
+## Listing Files
+
+List all files currently piggybacking on a given release. Omit `tag` to
+see files on all releases.
+
+``` r
+
+pb_list(repo = "cboettig/piggyback-tests", tag = "v0.0.1")
+#>         file_name   size           timestamp    tag    owner            repo
+#> 1 diamonds.tsv.gz 571664 2021-09-07 23:38:31 v0.0.1 cboettig piggyback-tests
+#> 2     iris.tsv.gz    846 2021-08-05 20:00:09 v0.0.1 cboettig piggyback-tests
+#> 3     iris.tsv.xz    848 2020-03-07 06:18:32 v0.0.1 cboettig piggyback-tests
+#> 4    iris2.tsv.gz    846 2018-10-05 17:04:33 v0.0.1 cboettig piggyback-tests
+```
+
+## Caching
+
+To reduce GitHub API calls, piggyback caches `pb_releases` and `pb_list`
+with a timeout of 10 minutes by default. This avoids repeating identical
+requests to update its internal record of the repository data (releases,
+assets, timestamps, etc) during programmatic use. You can increase or
+decrease this delay by setting the environment variable in seconds,
+e.g. `Sys.setenv("piggyback_cache_duration" = 3600)` for a longer cache
+or `Sys.setenv("piggyback_cache_duration" = 0)` to disable caching, and
+then restarting R.
+
+## Valid file names
+
+GitHub assets attached to a release do not support file paths, and will
+sometimes convert most special characters (`#`, `%`, etc) to `.` or
+throw an error (e.g.  for file names containing `$`, `@`, `/`).
+`piggyback` will default to using the
+[`basename()`](https://rdrr.io/r/base/basename.html) of the file only
+(i.e. will only use `"mtcars.csv"` if provided a file path like
+`"data/mtcars.csv"`)
+
+## A Note on GitHub Releases vs Data Archiving
+
+`piggyback` is not intended as a data archiving solution. Importantly,
+bear in mind that there is nothing special about multiple “versions” in
+releases, as far as data assets uploaded by `piggyback` are concerned.
+The data files `piggyback` attaches to a Release can be deleted or
+modified at any time – creating a new release to store data assets is
+the functional equivalent of just creating new directories `v0.1`,
+`v0.2` to store your data. (GitHub Releases are always pinned to a
+particular `git` tag, so the code/git-managed contents associated with
+repo are more immutable, but remember our data assets just piggyback on
+top of the repo).
+
+Permanent, published data should always be archived in a proper data
+repository with a DOI, such as [zenodo.org](https://zenodo.org). Zenodo
+can freely archive public research data files up to 50 GB in size, and
+data is strictly versioned (once released, a DOI always refers to the
+same version of the data, new releases are given new DOIs). `piggyback`
+is meant only to lower the friction of working with data during the
+research process, (e.g. provide data accessible to collaborators or
+continuous integration systems during research process, including for
+private repositories.)
+
+## What will GitHub think of this?
+
+[GitHub
+documentation](https://docs.github.com/en/github/managing-large-files/distributing-large-binaries)
+at the time of writing endorses the use of attachments to releases as a
+solution for distributing large files as part of your project:
+
+![screenshot of GitHub docs linked
+above](https://github.com/ropensci/piggyback/raw/83776863b34bb1c9962154608a5af41867a0622f/man/figures/github-policy.png)
